@@ -1,4 +1,6 @@
-from aegis_state import ConflictError, InMemoryStore
+import pytest
+
+from aegis_state import ConflictError, InMemoryStore, TransactionClosedError
 
 
 def test_revisioned_write_rejects_stale_state():
@@ -15,12 +17,8 @@ def test_revisioned_write_rejects_stale_state():
     assert committed.data["status"] == "running"
 
     tx2.set("status", "incorrect-overwrite")
-    try:
+    with pytest.raises(ConflictError):
         tx2.commit()
-    except ConflictError:
-        pass
-    else:
-        raise AssertionError("stale write must be rejected")
 
     final = store.snapshot("w1")
     assert final.data["status"] == "running"
@@ -33,16 +31,39 @@ def test_checkpoint_and_resume_restore_state():
 
     tx = store.begin("w2")
     tx.set("step", 7)
+    tx.append_event("state.set", {"key": "step", "value": 7}, "executor")
     tx.commit()
     revision = store.checkpoint("w2")
 
     tx = store.begin("w2")
     tx.set("step", 8)
+    tx.append_event("state.set", {"key": "step", "value": 8}, "executor")
     tx.commit()
 
     restored = store.resume("w2", revision)
     assert restored.revision == revision
     assert restored.data == {"step": 7}
+
+
+def test_resume_replays_state_set_events_after_checkpoint():
+    store = InMemoryStore()
+    store.create("w-replay")
+
+    tx = store.begin("w-replay")
+    tx.set("status", "queued")
+    tx.append_event("state.set", {"key": "status", "value": "queued"}, "planner")
+    tx.commit()
+    checkpoint_revision = store.checkpoint("w-replay")
+
+    tx = store.begin("w-replay")
+    tx.set("status", "running")
+    tx.append_event("state.set", {"key": "status", "value": "running"}, "executor")
+    tx.commit()
+
+    restored = store.resume("w-replay")
+    assert restored.revision == 2
+    assert restored.data["status"] == "running"
+    assert checkpoint_revision == 1
 
 
 def test_events_are_ordered_and_snapshot_isolated():
@@ -54,8 +75,22 @@ def test_events_are_ordered_and_snapshot_isolated():
     result = tx.commit()
 
     assert [event.sequence for event in result.events] == [1, 2]
-    assert [event.event_type for event in result.events] == ["worker.started", "task.created"]
+    assert [event.event_type for event in result.events] == [
+        "worker.started",
+        "task.created",
+    ]
 
     result.data["mutated"] = True
     latest = store.snapshot("w3")
     assert "mutated" not in latest.data
+
+
+def test_transaction_is_closed_after_commit():
+    store = InMemoryStore()
+    store.create("w4")
+    tx = store.begin("w4")
+    tx.set("ready", True)
+    tx.commit()
+
+    with pytest.raises(TransactionClosedError):
+        tx.set("again", True)
