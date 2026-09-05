@@ -1,68 +1,38 @@
-# Aegis — Durable State for Long-Running Agentic Workflows
+# Aegis State Management
 
-**Neo Residency application project · Andrzej Mikulski**
+**Neo Residency 2026 — Grant Project**  
+**Author:** Andrzej Mikulski
 
-[![CI](https://github.com/fotografandrzejmikulski-bit/Neo-residency-Grants/actions/workflows/ci.yml/badge.svg)](https://github.com/fotografandrzejmikulski-bit/Neo-residency-Grants/actions/workflows/ci.yml)
+> Durable execution state and concurrency control for long-running agentic workflows.
 
 ## Status
 
-**Pre-application / executable reference core.**
+**Pre-application prototype / executable systems reference model.**
 
-Aegis is a proposed infrastructure layer for long-running, asynchronous multi-agent AI workflows. The current repository contains an executable reference implementation of the core correctness semantics, tests, CI, and the evidence-grounded application/design documentation.
+Aegis is a narrowly scoped infrastructure layer for AI workflows that need to survive worker failures, coordinate concurrent mutations, preserve execution history, and resume from durable checkpoints.
 
-The project is intentionally not presented as production-ready and contains no fabricated benchmark results.
+The current repository contains an executable in-memory reference implementation. It is intentionally not presented as a production database or as proof of market fit.
 
-## The wedge
+## Why this exists
 
-> **Durable execution state and concurrency control for agentic workflows.**
+Long-running agent workflows introduce systems problems that are distinct from model quality:
 
-Aegis treats persistent agent state as a distributed-systems problem rather than as an implicit prompt history.
+- progress can disappear after a worker restart;
+- retries can duplicate side effects;
+- concurrent workers can write from stale state;
+- partial failures can make resumption ambiguous;
+- debugging can require reconstructing implicit execution history.
 
-The first primitives are:
+Aegis makes these semantics explicit through versioned state, conflict detection, checkpoints, an append-only event history, and a recovery model.
 
-- versioned state;
-- optimistic concurrency control;
-- immutable checkpoints;
-- ordered event history;
-- recovery/resume semantics;
-- typed workflow messages as a future protocol layer;
-- observability suitable for reconstructing execution lineage.
+## MVP semantic contract
 
-## Why this problem
-
-Long-running workflows can fail even when the underlying model behaves correctly: a worker can crash, a network operation can be interrupted, two workers can act on stale state, or a partially completed workflow can become difficult to resume safely.
-
-The core research question is narrow:
-
-> Will technically sophisticated developers adopt a dedicated state layer when it materially improves correctness/recovery while simplifying application code?
-
-That is an empirical hypothesis. The repository defines how to test it rather than assuming the answer.
-
-## Current executable core
-
-The package under `src/aegis_state/` provides an in-memory reference implementation for:
-
-```python
-from aegis_state import ConflictError, InMemoryStore
-
-store = InMemoryStore()
-state = store.create("research-job")
-
-worker_a = store.begin("research-job", state.revision)
-worker_b = store.begin("research-job", state.revision)
-
-worker_a.set("status", "running")
-worker_a.append_event("worker.started", {"worker": "planner"}, "planner")
-worker_a.commit()
-
-worker_b.set("status", "stale-write")
-try:
-    worker_b.commit()
-except ConflictError:
-    pass  # stale mutation is rejected instead of silently overwriting state
-```
-
-This implementation is deliberately small. It exists to make the semantic contract executable before introducing a durable database, distributed leases, cloud infrastructure, or model-serving instrumentation.
+1. **Versioned state** — every committed workflow state has a revision.
+2. **Optimistic concurrency** — writes based on stale revisions are rejected rather than silently overwriting newer state.
+3. **Durable-model checkpoints** — checkpoints capture a recoverable state boundary.
+4. **Event history** — important transitions can be represented as typed events.
+5. **Recovery** — the reference model can restore a checkpoint and replay supported state events.
+6. **Observable failure** — conflicts and invalid transaction lifecycle are explicit errors.
 
 ## Repository structure
 
@@ -78,63 +48,72 @@ This implementation is deliberately small. It exists to make the semantic contra
 │       └── core.py
 ├── tests/
 │   └── test_core.py
-├── .github/workflows/ci.yml
-└── docs/
-    ├── 01-thesis.md
-    ├── 02-problem.md
-    ├── 03-architecture.md
-    ├── 04-mvp.md
-    ├── 05-benchmarks.md
-    ├── 06-roadmap.md
-    ├── 07-go-to-market.md
-    ├── 08-risk-register.md
-    ├── 09-neo-fit.md
-    ├── 10-application-draft.md
-    ├── 11-budget.md
-    ├── 12-claims-audit.md
-    ├── 13-demo-script.md
-    ├── 14-verification-sources.md
-    └── 15-submission-checklist.md
+├── examples/
+│   └── canonical_workflow.py
+├── benchmarks/
+│   └── README.md
+├── docs/
+│   ├── 01-thesis.md
+│   ├── 02-problem.md
+│   ├── 03-architecture.md
+│   ├── 04-mvp.md
+│   ├── 05-benchmarks.md
+│   ├── 06-roadmap.md
+│   ├── 07-go-to-market.md
+│   ├── 08-risk-register.md
+│   ├── 09-neo-fit.md
+│   ├── 10-application-draft.md
+│   ├── 11-budget.md
+│   ├── 12-claims-audit.md
+│   ├── 13-demo-script.md
+│   └── 14-verification-sources.md
+└── .github/workflows/ci.yml
 ```
 
-## Validation model
+## Quick start
 
-Every material claim should be one of four things:
+```bash
+python -m pip install -e '.[test]'
+pytest -q
+PYTHONPATH=src python examples/canonical_workflow.py
+```
 
-1. a current primary-source fact;
-2. a measured project result;
-3. an explicitly labeled hypothesis;
-4. an explicitly labeled planning assumption.
+The canonical demo intentionally creates a stale concurrent write. The expected behavior is a visible conflict rather than silent data loss.
 
-The claims audit records where the original research draft was too categorical and prevents those statements from silently becoming application facts. See `docs/12-claims-audit.md`.
+## What is proven vs. what is not
 
-## Benchmark plan
+### Demonstrated in the repository
 
-Aegis will be compared against a clearly defined application-managed baseline and at least one mainstream persistence/orchestration approach under identical workloads.
+- stale revision detection;
+- checkpoint creation and restoration;
+- replay of supported `state.set` events;
+- ordered event records;
+- snapshot isolation;
+- transaction lifecycle enforcement.
 
-The first benchmark family covers:
+### Not yet demonstrated
 
-- long-running execution with controlled failure;
-- concurrent stale writes;
-- process/network failure and recovery;
-- durable inter-worker messaging.
+- production-grade persistence;
+- distributed consensus or cross-process locking;
+- enterprise security controls;
+- performance superiority over selected production baselines;
+- product-market fit;
+- any automatic reduction in GPU KV-cache/HBM usage.
 
-The repository does **not** publish synthetic performance numbers as completed results. Reproducible results must include the commit SHA, environment, workload seed, repetitions, and latency/distribution summary.
+Those claims require controlled experiments and external evidence. The benchmark protocol defines how to collect it.
 
 ## Neo Residency fit
 
-Neo's public 2026 Residency materials are recorded in the repository's verification documents. The application narrative uses those sources rather than unsupported assumptions about the program, mentors, acceptance rates, or investment outcomes.
+Neo's public 2026 Residency materials state that students receive an equity-free grant, profit share, workspace, the Oregon bootcamp, mentorship, Demo Day/VC introductions, and infrastructure benefits. The repository keeps program facts separate from project hypotheses and requires re-verification before final submission.
 
-The project is designed around the value of a concentrated technical environment: build a narrow systems primitive, expose it to strong technical peers, run adversarial tests, measure the result, and make an evidence-based company decision.
+See `docs/09-neo-fit.md`, `docs/12-claims-audit.md`, and `docs/14-verification-sources.md`.
 
 ## Author
 
 **Andrzej Mikulski**  
-Tel. +48 455 575 337  
+Phone: +48 455 575 337  
 Email: mojealterego21@gmail.com
 
-See `AUTHOR.md` for application/contact metadata.
+## Intellectual honesty rule
 
-## License
-
-MIT. See `LICENSE`.
+No fabricated benchmark results. No fabricated customers. No invented mentors. No unsupported investment outcome. Every external claim must be backed by a current primary source or clearly marked as a hypothesis/assumption.
