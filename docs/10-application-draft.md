@@ -1,53 +1,151 @@
-# Neo Residency Application — Draft
+# Neo Residency / Direct Outreach Application — Final Draft
+
+## Applicant
+
+**Andrzej Mikulski**  
+Phone: +48 455 575 337  
+Email: mojealterego21@gmail.com
 
 ## Project
 
-**Aegis — durable state and concurrency infrastructure for long-running AI agents**
+**Aegis — durable state and concurrency infrastructure for long-running agentic workflows**
+
+## One-sentence description
+
+Aegis is a systems layer that makes long-running multi-agent workflows durable, recoverable, concurrency-safe, and inspectable.
 
 ## What are you building?
 
-I am building a small infrastructure layer that makes long-running multi-agent workflows durable and recoverable.
+I am building the state layer underneath long-running AI workflows.
 
-Today, an agent workflow can fail in a surprisingly non-AI way: a worker crashes, the network drops, two agents mutate the same resource from stale state, or a partially completed workflow becomes impossible to resume reliably. Developers then rebuild persistence, retries, locking, event history, and recovery inside application code.
+A multi-agent system can fail without the underlying model being wrong: a worker can crash, a network call can be repeated, two agents can mutate the same resource from stale state, or a partially completed workflow can become difficult to resume safely. Today, developers often assemble persistence, retries, versioning, event history, conflict handling, and recovery themselves inside application code.
 
-Aegis turns those concerns into explicit infrastructure primitives: versioned state, durable checkpoints, an append-only event history, conflict detection, idempotency, recovery, and typed messages between workers.
+Aegis turns those concerns into explicit infrastructure primitives:
 
-The goal is not to build another agent framework. It is to provide the systems layer underneath agent frameworks.
+- versioned workflow state;
+- optimistic concurrency control;
+- immutable checkpoints;
+- append-only event history;
+- idempotency and recovery semantics;
+- typed inter-agent messages;
+- operational observability.
 
-## Why this problem?
+The goal is **not** another agent framework, agent marketplace, or chatbot wrapper. The goal is a reusable systems primitive that existing agent applications can call into.
 
-As workflows become longer and more asynchronous, reliability becomes a first-order product constraint. A one-shot response can be retried. A multi-hour or multi-day workflow with side effects cannot be safely treated as a single prompt loop.
+## The problem I want to prove
 
-I want to test a narrow hypothesis: developers will adopt a dedicated state layer when it gives them a simpler integration model and materially better recovery/concurrency behavior than application-managed state.
+My hypothesis is narrow:
 
-I will measure that directly instead of assuming it.
+> Developers building persistent, asynchronous agentic workflows will adopt a dedicated state layer when it materially improves correctness and recovery while remaining simpler to integrate than rebuilding those semantics in application code.
 
-## What will I build during the Residency?
+I am deliberately treating that as a hypothesis, not as an established market fact.
 
-First, a minimal local implementation with a Python SDK. Then I will integrate it into a real three-worker workflow: planner, executor, and verifier.
+## What exists today
 
-I will inject process failures and stale concurrent writes deliberately. The first success criterion is not a benchmark score; it is correctness. Aegis must recover the workflow and refuse unsafe stale mutations instead of silently losing state.
+This repository contains an executable in-memory reference implementation of the core semantics:
 
-After that, I will put the system in the hands of other technical builders, collect failure cases, simplify the API, and benchmark the system against a clearly defined baseline.
+- revisioned state;
+- rejection of stale writes;
+- checkpoint creation;
+- checkpoint restoration;
+- replay of supported state events;
+- ordered event records;
+- transaction lifecycle enforcement.
 
-## What would convince me this should become a company?
+The canonical example demonstrates a stale concurrent write being rejected rather than silently overwriting newer state.
 
-Three things:
+The repository does **not** claim production-grade persistence, market validation, enterprise security, or performance superiority before those things are measured.
 
-1. developers independently integrate the system into real workflows;
-2. failure and concurrency behavior is measurably better than the baseline;
-3. users continue using it after the initial experiment because removing it makes their workflows materially harder to operate.
+## What I will build next
 
-If those conditions are not met, I will treat that as useful research rather than force the project into a company prematurely.
+The next implementation phase moves the reference semantics into a durable backend while preserving the same correctness contract.
 
-## Why Neo?
+The development sequence is:
 
-Neo's Residency is unusually well matched to this experiment. Its 2026 program provides students with a $40K equity-free grant, a dedicated SF workspace, a two-week Oregon bootcamp, weekly mentorship, Demo Day/VC introductions, and $100K+ of Azure, AWS, OpenAI and related infrastructure benefits. citeturn657288search0turn657288search1
+1. durable transactional storage;
+2. process and network fault injection;
+3. concurrent worker tests;
+4. idempotent side-effect boundaries;
+5. recovery and replay verification;
+6. a minimal Python SDK;
+7. a canonical planner → executor → verifier workload;
+8. reproducible baseline comparisons;
+9. documentation and developer onboarding;
+10. design-partner testing.
 
-More importantly, the program puts technically strong builders in the same environment. For infrastructure software, that is a direct way to turn a hypothesis into adversarial testing, integration feedback, and real technical users.
+## How I will measure success
 
-## What is ambitious here?
+I will not define success using adjectives such as "revolutionary" or "unbeatable". I will use measurable criteria.
 
-I am deliberately choosing a problem below the application layer. If I am right, Aegis could become a reusable primitive for persistent agentic software rather than a single application.
+### Correctness
 
-But I do not need to prove that entire future during the Residency. I need to prove one difficult thing clearly: that durable state and concurrency semantics are painful enough, and valuable enough, that developers will choose a dedicated layer for them.
+- zero silent lost updates in the supported concurrency tests;
+- reproducible recovery after controlled worker termination;
+- deterministic reconstruction of supported state from checkpoints and events;
+- correct handling of duplicate idempotent deliveries.
+
+### Systems performance
+
+For each workload I will record:
+
+- p50/p95 state-read latency;
+- p50/p95 state-write/commit latency;
+- checkpoint duration;
+- event-ingestion throughput;
+- recovery time;
+- conflict rate and retry rate;
+- end-to-end cost per completed workflow.
+
+### Developer adoption
+
+The strongest validation would be independent developers integrating Aegis into real workflows without direct implementation help, then continuing to use it because removing it makes those workflows materially harder to operate.
+
+## Canonical demo
+
+The demo uses three workers:
+
+**Planner → Executor → Verifier**
+
+The demonstration intentionally injects:
+
+- a worker/process failure;
+- a stale concurrent write;
+- a recovery operation from a durable checkpoint.
+
+The expected result is deterministic: committed work remains visible, stale mutation is rejected, and the workflow resumes from a known state boundary.
+
+## Why Neo
+
+Neo's public Residency materials describe a small technical cohort, three months working from the Neo San Francisco workspace, an all-expenses-paid Oregon bootcamp, mentorship, Demo Day/VC introductions, and infrastructure benefits. For students, Neo states a $40K equity-free grant per person, a $10K profit share of Neo fund carry, and $100K+ of Azure, AWS, OpenAI and related benefits. Neo also states that if a student project becomes a company, it would want to invest on its standard startup terms. citeturn646406search0turn646406search1
+
+The fit is practical rather than promotional. A systems-infrastructure project benefits from a dense technical community where sophisticated builders can attack the design, test the prototype, and expose failure modes quickly.
+
+## Why me
+
+I am deliberately choosing a technically difficult problem that can be reduced to a small, falsifiable systems primitive.
+
+I would rather spend the program proving one important systems claim with code and adversarial tests than presenting a broad product vision without evidence.
+
+The project is designed so that the residency itself becomes part of the experiment: build quickly, let strong technical users break it, instrument everything, simplify the interface, and decide from evidence whether the primitive deserves to become a company.
+
+## What would convince me to form a company?
+
+Three conditions:
+
+1. independent technical users integrate Aegis into real workflows;
+2. the system demonstrates a measurable correctness/recovery advantage over reasonable application-managed baselines;
+3. the value survives beyond a one-time demo because users continue to depend on the primitive.
+
+If those conditions are not met, I will treat the result as useful technical research rather than force a startup around it.
+
+## Long-term ambition
+
+If the hypothesis is correct, Aegis can evolve from a local correctness primitive into infrastructure for persistent agentic software: a durable execution substrate where state, concurrency, recovery, and operational history are explicit rather than hidden inside prompts and application-specific glue code.
+
+The long-term opportunity is intentionally not part of the proof burden for the first milestone. The first milestone is simpler: **make long-running agent execution reliably recoverable and concurrency-safe, then prove that developers care.**
+
+## Contact
+
+**Andrzej Mikulski**  
++48 455 575 337  
+mojealterego21@gmail.com
