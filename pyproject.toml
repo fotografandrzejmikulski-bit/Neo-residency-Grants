@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aegis-state"
+version = "0.1.0"
+description = "Durable state and concurrency primitives for long-running agentic workflows"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {file = "LICENSE"}
+authors = [{name = "Andrzej Mikulski", email = "mojealterego21@gmail.com"}]
+keywords = ["agents", "durability", "workflow", "concurrency", "state-management", "ai-infrastructure"]
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
